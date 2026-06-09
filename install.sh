@@ -5,10 +5,13 @@ cd "$(dirname "$0")"
 
 echo "==> Mobile SQL: установка"
 
-# 1. Termux? Ставим системный python через pkg
+# 1. Termux? Ставим системный python + Rust-тулчейн.
+# Rust нужен, чтобы собрать pydantic-core (зависимость FastAPI): под Android
+# готового wheel нет, а rustup не знает таргет aarch64-linux-android — поэтому
+# берём rust из репозитория Termux, который собран под платформу.
 if [ -d "/data/data/com.termux" ]; then
-  echo "==> Termux обнаружен, ставлю python..."
-  pkg install -y python
+  echo "==> Termux обнаружен, ставлю python + rust (для сборки pydantic-core)..."
+  pkg install -y python rust binutils
 fi
 
 # 2. python должен быть в наличии
@@ -18,9 +21,9 @@ if ! command -v python3 >/dev/null 2>&1; then
 fi
 
 # 3. Зависимости
+# В Termux НЕ обновляем pip (pkg python-pip это запрещает и команда падает).
 echo "==> Ставлю зависимости..."
-pip install --upgrade pip >/dev/null
-pip install -r requirements.txt
+python3 -m pip install -r requirements.txt
 
 # 4. Конфиг
 if [ ! -f config.json ]; then
@@ -37,6 +40,13 @@ BASHRC="$HOME/.bashrc"
 if ! grep -q "alias sql=" "$BASHRC" 2>/dev/null; then
   echo "alias sql='bash \"$APP_DIR/run.sh\"'" >> "$BASHRC"
   echo "==> Добавлен алиас 'sql' в ~/.bashrc (перезапусти Termux или: source ~/.bashrc)"
+fi
+
+# 5b. В Termux login-шелл читает ~/.bash_profile, а не ~/.bashrc — поэтому без
+# этого алиас 'sql' не виден в новых сессиях. Подключаем .bashrc явно.
+PROFILE="$HOME/.bash_profile"
+if ! grep -q "source ~/.bashrc" "$PROFILE" 2>/dev/null; then
+  echo '[ -f ~/.bashrc ] && source ~/.bashrc' >> "$PROFILE"
 fi
 
 # 6. Иконка на главном экране через Termux:Widget
