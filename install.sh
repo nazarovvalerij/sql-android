@@ -42,6 +42,13 @@ if ! grep -q "alias sql=" "$BASHRC" 2>/dev/null; then
   echo "==> Добавлен алиас 'sql' в ~/.bashrc (перезапусти Termux или: source ~/.bashrc)"
 fi
 
+# 5b. В Termux login-шелл читает ~/.bash_profile, а не ~/.bashrc — поэтому без
+# этого алиас 'sql' не виден в новых сессиях. Подключаем .bashrc явно.
+PROFILE="$HOME/.bash_profile"
+if ! grep -q "source ~/.bashrc" "$PROFILE" 2>/dev/null; then
+  echo '[ -f ~/.bashrc ] && source ~/.bashrc' >> "$PROFILE"
+fi
+
 # 6. Иконка на главном экране через Termux:Widget
 if [ -d "/data/data/com.termux" ]; then
   mkdir -p "$HOME/.shortcuts"
