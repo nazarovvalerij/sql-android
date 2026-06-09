@@ -18,9 +18,9 @@ if ! command -v python3 >/dev/null 2>&1; then
 fi
 
 # 3. Зависимости
+# В Termux НЕ обновляем pip (pkg python-pip это запрещает и команда падает).
 echo "==> Ставлю зависимости..."
-pip install --upgrade pip >/dev/null
-pip install -r requirements.txt
+python3 -m pip install -r requirements.txt
 
 # 4. Конфиг
 if [ ! -f config.json ]; then
