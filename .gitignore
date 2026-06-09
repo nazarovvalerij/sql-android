@@ -1,0 +1,13 @@
+# секреты — НЕ коммитим
+config.json
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# прочее
+.DS_Store
+*.log
+query_result.csv

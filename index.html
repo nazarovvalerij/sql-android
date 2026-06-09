@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#0d1117">
+<title>Mobile SQL</title>
+<link rel="manifest" href="data:application/manifest+json,{%22name%22:%22Mobile%20SQL%22,%22display%22:%22standalone%22,%22background_color%22:%22%230d1117%22}">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/material-darker.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.css">
+<style>
+  :root { --bg:#0d1117; --panel:#161b22; --border:#30363d; --txt:#e6edf3; --accent:#2f81f7; --muted:#8b949e; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--txt);
+    font-family:-apple-system,Segoe UI,Roboto,sans-serif; font-size:15px; }
+  body { display:flex; flex-direction:column; height:100dvh; }
+  header { display:flex; gap:8px; align-items:center; padding:8px 10px;
+    background:var(--panel); border-bottom:1px solid var(--border); flex-wrap:wrap; }
+  select, button { background:#21262d; color:var(--txt); border:1px solid var(--border);
+    border-radius:8px; padding:9px 12px; font-size:15px; }
+  button { font-weight:600; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  button:active { opacity:.7; }
+  .grow { flex:1; }
+  #editor-wrap { border-bottom:1px solid var(--border); }
+  .CodeMirror { height:32vh; font-size:15px; font-family:ui-monospace,Menlo,monospace; }
+  #status { padding:6px 10px; font-size:13px; color:var(--muted); background:var(--panel);
+    border-bottom:1px solid var(--border); min-height:30px; white-space:pre-wrap; }
+  #status.err { color:#f85149; }
+  #result { flex:1; overflow:auto; -webkit-overflow-scrolling:touch; }
+  table { border-collapse:collapse; width:100%; font-size:13px; font-family:ui-monospace,monospace; }
+  th,td { border:1px solid var(--border); padding:6px 9px; text-align:left;
+    white-space:nowrap; max-width:340px; overflow:hidden; text-overflow:ellipsis; }
+  th { background:#1c2128; position:sticky; top:0; z-index:1; }
+  tr:nth-child(even) td { background:#11151c; }
+  .bar2 { display:flex; gap:8px; padding:8px 10px; background:var(--panel);
+    border-top:1px solid var(--border); align-items:center; flex-wrap:wrap; }
+  .bar2 label { color:var(--muted); font-size:13px; }
+  input[type=number] { width:84px; background:#21262d; color:var(--txt);
+    border:1px solid var(--border); border-radius:8px; padding:8px; font-size:15px; }
+</style>
+</head>
+<body>
+<header>
+  <select id="db"></select>
+  <button id="run" class="primary grow">▶ Запустить</button>
+  <button id="history">История</button>
+</header>
+<div id="editor-wrap"><textarea id="sql">SELECT 1</textarea></div>
+<div id="status">Готов. Ctrl/Cmd+Enter — запустить.</div>
+<div id="result"></div>
+<div class="bar2">
+  <label>LIMIT</label>
+  <input type="number" id="limit" value="1000" min="1" max="50000">
+  <button id="export" class="grow">Экспорт CSV</button>
+  <span id="schemaInfo" style="color:var(--muted);font-size:12px"></span>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/sql/sql.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/sql-hint.min.js"></script>
+<script>
+const $ = s => document.querySelector(s);
+let lastResult = null;
+let schemaTables = {};
+
+const cm = CodeMirror.fromTextArea($("#sql"), {
+  mode: "text/x-sql",
+  theme: "material-darker",
+  lineNumbers: true,
+  lineWrapping: true,
+  matchBrackets: true,
+  autofocus: false,
+  hintOptions: { tables: {}, completeSingle: false },
+});
+
+// автодополнение по мере набора (буквы/точка)
+cm.on("inputRead", (_, ev) => {
+  if (ev.origin !== "+input") return;
+  const ch = ev.text[0];
+  if (/[\w.]/.test(ch)) cm.showHint();
+});
+// Ctrl-Space — ручной вызов подсказок
+cm.addKeyMap({ "Ctrl-Space": c => c.showHint() });
+// Ctrl/Cmd+Enter — запуск
+cm.addKeyMap({ "Ctrl-Enter": run, "Cmd-Enter": run });
+
+async function loadDatabases() {
+  const r = await fetch("/api/databases").then(r => r.json());
+  $("#db").innerHTML = r.databases.map(d => `<option>${d}</option>`).join("");
+  if (r.databases.length) loadSchema();
+}
+
+async function loadSchema() {
+  const db = $("#db").value;
+  $("#schemaInfo").textContent = "схема…";
+  try {
+    const r = await fetch("/api/schema?db=" + encodeURIComponent(db)).then(r => r.json());
+    schemaTables = r.tables || {};
+    cm.setOption("hintOptions", { tables: schemaTables, completeSingle: false });
+    $("#schemaInfo").textContent = Object.keys(schemaTables).length + " таблиц";
+  } catch (e) {
+    $("#schemaInfo").textContent = "схема не загружена";
+  }
+}
+
+function setStatus(msg, isErr) {
+  const s = $("#status");
+  s.textContent = msg;
+  s.className = isErr ? "err" : "";
+}
+
+function render(res) {
+  lastResult = res;
+  const cols = res.columns || [];
+  const rows = res.rows || [];
+  let h = "<table><thead><tr>" + cols.map(c => `<th>${esc(c)}</th>`).join("") + "</tr></thead><tbody>";
+  for (const row of rows) h += "<tr>" + row.map(v => `<td>${esc(v)}</td>`).join("") + "</tr>";
+  h += "</tbody></table>";
+  $("#result").innerHTML = h;
+}
+
+function esc(v) {
+  if (v === null || v === undefined) return "<span style='color:#8b949e'>∅</span>";
+  return String(v).replace(/[&<>]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;" }[c]));
+}
+
+async function run() {
+  const db = $("#db").value;
+  const sql = cm.getValue().trim();
+  if (!sql) return;
+  setStatus("Выполняю…");
+  const t0 = performance.now();
+  try {
+    const r = await fetch("/api/query", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ db, sql, limit: Number($("#limit").value) }),
+    });
+    const data = await r.json();
+    if (!r.ok) { setStatus(data.detail || "Ошибка", true); return; }
+    render(data);
+    const ms = Math.round(performance.now() - t0);
+    setStatus(`${data.rows_count} строк · ${ms} мс`);
+    saveHistory(sql, db);
+  } catch (e) {
+    setStatus("Сеть: " + e.message, true);
+  }
+}
+
+// --- экспорт CSV ---
+function exportCSV() {
+  if (!lastResult) return;
+  const { columns, rows } = lastResult;
+  const q = v => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const csv = [columns.map(q).join(","), ...rows.map(r => r.map(q).join(","))].join("\n");
+  const blob = new Blob(["﻿" + csv], { type: "text/csv" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "query_result.csv";
+  a.click();
+}
+
+// --- история (localStorage) ---
+function saveHistory(sql, db) {
+  const h = JSON.parse(localStorage.getItem("sql_history") || "[]");
+  h.unshift({ sql, db, t: Date.now() });
+  localStorage.setItem("sql_history", JSON.stringify(h.slice(0, 100)));
+}
+function showHistory() {
+  const h = JSON.parse(localStorage.getItem("sql_history") || "[]");
+  if (!h.length) { setStatus("История пуста"); return; }
+  const pick = prompt(
+    "История (введи номер):\n" +
+    h.slice(0, 20).map((x, i) => `${i}: [${x.db}] ${x.sql.slice(0, 60).replace(/\n/g, " ")}`).join("\n")
+  );
+  const idx = parseInt(pick, 10);
+  if (!isNaN(idx) && h[idx]) { cm.setValue(h[idx].sql); $("#db").value = h[idx].db; }
+}
+
+$("#run").onclick = run;
+$("#export").onclick = exportCSV;
+$("#history").onclick = showHistory;
+$("#db").onchange = loadSchema;
+loadDatabases();
+</script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+{
+  "default_limit": 1000,
+  "max_limit": 50000,
+
+  "clickhouse": {
+    "host": "10.0.0.10",
+    "port": 8123,
+    "database": "default",
+    "user": "readonly_user",
+    "password": "СЕКРЕТ",
+    "timeout": 60
+  },
+
+  "mariadb": {
+    "host": "10.0.0.11",
+    "port": 3306,
+    "database": "logs",
+    "user": "readonly_user",
+    "password": "СЕКРЕТ",
+    "timeout": 60
+  }
+}
