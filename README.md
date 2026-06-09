@@ -18,32 +18,53 @@ Read-only клиент для **ClickHouse** и **MariaDB**, который кр
 Ничего наружу не торчит: сервер слушает только `127.0.0.1`, секреты БД лежат в `config.json`
 на телефоне.
 
-## Установка в Termux (быстрый путь, из GitHub)
+## Установка в Termux (одна строка)
 
 1. Поставь **Termux** из F-Droid (версия из Play Store устарела): https://f-droid.org/packages/com.termux/
-2. В Termux одной пачкой:
+2. В Termux вставь одну команду:
    ```bash
-   pkg install -y git
-   git clone https://github.com/nazarovvalerij/sql-android.git
-   cd sql-android
-   bash install.sh        # поставит python + зависимости, создаст config.json
-   nano config.json       # впиши свои хосты/логины
+   curl -fsSL https://raw.githubusercontent.com/nazarovvalerij/sql-android/main/bootstrap.sh | bash
+   ```
+   Она поставит git, склонирует репозиторий в `~/sql-android`, запустит `install.sh`
+   (python + зависимости + config + алиас `sql` + иконку для виджета).
+3. Впиши доступы к БД:
+   ```bash
+   nano ~/sql-android/config.json
    ```
 
-`install.sh` сам определяет Termux, ставит `python` через `pkg`, зависимости через `pip`
-и копирует `config.example.json` → `config.json`.
+<details>
+<summary>Установка вручную (если не доверяешь curl | bash)</summary>
+
+```bash
+pkg install -y git
+git clone https://github.com/nazarovvalerij/sql-android.git
+cd sql-android
+bash install.sh
+nano config.json
+```
+</details>
 
 ## Запуск
 
+Любой из способов:
+
 ```bash
-cd sql-android
-bash run.sh
+sql              # короткий алиас (после перезапуска Termux или `source ~/.bashrc`)
+bash ~/sql-android/run.sh
 ```
 
-Открой в Chrome на телефоне: **http://localhost:8000**
-Чтобы было как приложение — в меню Chrome «Добавить на главный экран» (запустится в отдельном окне).
+Браузер **откроется сам** на `http://localhost:8000` (через системный `am`).
+Остановить сервер: `Ctrl+C` в Termux.
 
-Остановить: в Termux `Ctrl+C`.
+### Иконка на главном экране (как приложение)
+
+`install.sh` создаёт launcher `~/.shortcuts/Mobile SQL`. Чтобы получить иконку-кнопку:
+
+1. Поставь дополнение **Termux:Widget** из F-Droid: https://f-droid.org/packages/com.termux.widget/
+2. На рабочем столе Android: добавь виджет **Termux:Widget** → выбери **Mobile SQL**.
+3. Тап по иконке → сервер стартует и Chrome открывается сам. Termux открывать не нужно.
+
+Можно также в Chrome «Добавить на главный экран» сам редактор — тогда он запускается в отдельном окне без адресной строки.
 
 ## Безопасность (важно)
 

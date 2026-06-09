@@ -30,6 +30,29 @@ else
   echo "==> config.json уже есть, не трогаю."
 fi
 
+APP_DIR="$(pwd)"
+
+# 5. Алиас `sql` для быстрого запуска (идемпотентно)
+BASHRC="$HOME/.bashrc"
+if ! grep -q "alias sql=" "$BASHRC" 2>/dev/null; then
+  echo "alias sql='bash \"$APP_DIR/run.sh\"'" >> "$BASHRC"
+  echo "==> Добавлен алиас 'sql' в ~/.bashrc (перезапусти Termux или: source ~/.bashrc)"
+fi
+
+# 6. Иконка на главном экране через Termux:Widget
+if [ -d "/data/data/com.termux" ]; then
+  mkdir -p "$HOME/.shortcuts"
+  cat > "$HOME/.shortcuts/Mobile SQL" <<EOF
+#!/data/data/com.termux/files/usr/bin/bash
+bash "$APP_DIR/run.sh"
+EOF
+  chmod +x "$HOME/.shortcuts/Mobile SQL"
+  echo "==> Создан launcher для Termux:Widget (~/.shortcuts/Mobile SQL)"
+fi
+
 echo ""
-echo "Готово. Запуск:   bash run.sh"
-echo "Затем открой в браузере телефона:  http://localhost:8000"
+echo "Готово. Запуск одной из команд:"
+echo "   sql                 # короткий алиас"
+echo "   bash run.sh         # напрямую"
+echo "Или тапни иконку Termux:Widget на главном экране."
+echo "Браузер откроется сам на http://localhost:8000"
