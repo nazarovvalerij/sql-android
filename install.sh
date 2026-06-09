@@ -5,10 +5,13 @@ cd "$(dirname "$0")"
 
 echo "==> Mobile SQL: установка"
 
-# 1. Termux? Ставим системный python через pkg
+# 1. Termux? Ставим системный python + Rust-тулчейн.
+# Rust нужен, чтобы собрать pydantic-core (зависимость FastAPI): под Android
+# готового wheel нет, а rustup не знает таргет aarch64-linux-android — поэтому
+# берём rust из репозитория Termux, который собран под платформу.
 if [ -d "/data/data/com.termux" ]; then
-  echo "==> Termux обнаружен, ставлю python..."
-  pkg install -y python
+  echo "==> Termux обнаружен, ставлю python + rust (для сборки pydantic-core)..."
+  pkg install -y python rust binutils
 fi
 
 # 2. python должен быть в наличии
